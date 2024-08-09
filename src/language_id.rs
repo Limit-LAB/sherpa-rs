@@ -12,7 +12,7 @@ impl SpokenLanguageId {
         encoder: String,
         decoder: String,
         debug: Option<bool>,
-        provider: Option<String>,
+        provider: Option<&str>,
         num_threads: Option<i32>,
     ) -> Self {
         let provider = provider.unwrap_or(get_default_provider());

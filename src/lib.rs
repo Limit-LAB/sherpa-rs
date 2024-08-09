@@ -1,3 +1,4 @@
+pub mod add_punctuation;
 pub mod embedding_manager;
 pub mod language_id;
 pub mod speaker_id;
@@ -9,7 +10,7 @@ use eyre::{bail, Result};
 #[cfg(feature = "tts")]
 pub mod tts;
 
-pub fn get_default_provider() -> String {
+pub const fn get_default_provider() -> &'static str {
     if cfg!(feature = "cuda") {
         "cuda"
     } else if cfg!(target_os = "macos") {
@@ -19,7 +20,6 @@ pub fn get_default_provider() -> String {
     } else {
         "cpu"
     }
-    .into()
 }
 
 pub fn read_audio_file(path: &str) -> Result<(i32, Vec<f32>)> {

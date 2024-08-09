@@ -21,7 +21,7 @@ pub struct EmbeddingExtractor {
 impl ExtractorConfig {
     pub fn new(
         model: String,
-        provider: Option<String>,
+        provider: Option<&str>,
         num_threads: Option<i32>,
         debug: bool,
     ) -> Self {

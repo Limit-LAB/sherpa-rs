@@ -22,7 +22,7 @@ impl WhisperRecognizer {
         tokens: String,
         language: String,
         debug: Option<bool>,
-        provider: Option<String>,
+        provider: Option<&str>,
         num_threads: Option<i32>,
         bpe_vocab: Option<String>,
     ) -> Self {

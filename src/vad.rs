@@ -20,7 +20,7 @@ impl VadConfig {
         threshold: f32,
         sample_rate: i32,
         window_size: i32,
-        provider: Option<String>,
+        provider: Option<&str>,
         num_threads: Option<i32>,
         debug: Option<bool>,
     ) -> Self {
