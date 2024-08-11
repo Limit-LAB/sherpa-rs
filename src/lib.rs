@@ -1,6 +1,8 @@
 pub mod add_punctuation;
 pub mod embedding_manager;
+pub mod keyword_spotting;
 pub mod language_id;
+pub mod online;
 pub mod speaker_id;
 pub mod transcribe;
 pub mod vad;
@@ -9,6 +11,25 @@ use eyre::{bail, Result};
 
 #[cfg(feature = "tts")]
 pub mod tts;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Provider {
+    Cpu,
+    Cuda,
+    Coreml,
+    Directml,
+}
+
+impl Provider {
+    pub fn to_ptr(&self) -> *const u8 {
+        match self {
+            Provider::Cpu => "cpu\0".as_ptr(),
+            Provider::Cuda => "cuda\0".as_ptr(),
+            Provider::Coreml => "coreml\0".as_ptr(),
+            Provider::Directml => "directml\0".as_ptr(),
+        }
+    }
+}
 
 pub const fn get_default_provider() -> &'static str {
     if cfg!(feature = "cuda") {
