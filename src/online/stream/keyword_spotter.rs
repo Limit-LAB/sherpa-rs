@@ -5,29 +5,17 @@ use std::{
 
 use sherpa_rs_sys::{
     SherpaOnnxFeatureConfig, SherpaOnnxKeywordSpotterConfig, SherpaOnnxOnlineModelConfig,
-    SherpaOnnxOnlineStreamAcceptWaveform,
 };
 
-use crate::{
-    get_default_provider,
-    transcribe::online::{Transducer, Zipformer2Ctc},
-};
+use crate::{get_default_provider, online::transducer::Transducer};
 
-pub struct KeywordSpotter {
+use super::OnlineStream;
+
+pub struct KeywordSpottingStream {
     spotter: *mut sherpa_rs_sys::SherpaOnnxKeywordSpotter,
     stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
 }
-
-impl Drop for KeywordSpotter {
-    fn drop(&mut self) {
-        unsafe {
-            sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
-            sherpa_rs_sys::SherpaOnnxDestroyKeywordSpotter(self.spotter);
-        }
-    }
-}
-
-impl KeywordSpotter {
+impl KeywordSpottingStream {
     pub fn from_transducer(
         transducer: Transducer,
         provider: Option<&str>,
@@ -80,10 +68,21 @@ impl KeywordSpotter {
         };
         Self { spotter, stream }
     }
+}
 
-    pub fn accept_waveform(&self, sample_rate: i32, samples: Vec<f32>) {
+impl Drop for KeywordSpottingStream {
+    fn drop(&mut self) {
         unsafe {
-            SherpaOnnxOnlineStreamAcceptWaveform(
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
+            sherpa_rs_sys::SherpaOnnxDestroyKeywordSpotter(self.spotter);
+        }
+    }
+}
+
+impl OnlineStream for KeywordSpottingStream {
+    fn accept_waveform(&mut self, sample_rate: i32, samples: Vec<f32>) {
+        unsafe {
+            sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
                 self.stream,
                 sample_rate,
                 samples.as_ptr(),
@@ -92,17 +91,17 @@ impl KeywordSpotter {
         }
     }
 
-    pub fn decode_stream(&self) {
+    fn decode_stream(&mut self) {
         unsafe {
             sherpa_rs_sys::SherpaOnnxDecodeKeywordStream(self.spotter, self.stream);
         }
     }
 
-    pub fn is_ready(&self) -> bool {
+    fn is_ready(&mut self) -> bool {
         unsafe { sherpa_rs_sys::SherpaOnnxIsKeywordStreamReady(self.spotter, self.stream) == 1 }
     }
 
-    pub fn get_result(&self) -> String {
+    fn get_result(&mut self) -> String {
         unsafe {
             let result = sherpa_rs_sys::SherpaOnnxGetKeywordResult(self.spotter, self.stream);
             let result = std::ptr::read(result);
@@ -111,13 +110,4 @@ impl KeywordSpotter {
             keyword
         }
     }
-
-    // def get_result(self, s: OnlineStream) -> str:
-    //     return self.keyword_spotter.get_result(s).keyword.strip()
-
-    // def tokens(self, s: OnlineStream) -> List[str]:
-    //     return self.keyword_spotter.get_result(s).tokens
-
-    // def timestamps(self, s: OnlineStream) -> List[float]:
-    //     return self.keyword_spotter.get_result(s).timestamps
 }

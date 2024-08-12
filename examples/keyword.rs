@@ -1,7 +1,8 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleRate};
-use sherpa_rs::keyword_spotting::KeywordSpotter;
-use sherpa_rs::transcribe::online::{OnlineRecognizer, Paraformer, Search, Transducer};
+use sherpa_rs::online::stream::keyword_spotter::KeywordSpottingStream;
+use sherpa_rs::online::stream::OnlineStream;
+use sherpa_rs::online::transducer::Transducer;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -24,7 +25,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     let encoder = Path::new(
-        "//home/lemonxh/下载/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
+        "/home/lemonxh/下载/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
     );
     let decoder = Path::new(
         "/home/lemonxh/下载/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx",
@@ -41,8 +42,15 @@ fn main() -> Result<(), anyhow::Error> {
     );
 
     let tr = Transducer::new(encoder, decoder, joiner);
-    let spotter =
-        KeywordSpotter::from_transducer(tr, Some("cpu"), tokens, false, keywords, None, None);
+    let spotter = KeywordSpottingStream::from_transducer(
+        tr,
+        Some("cpu"),
+        tokens,
+        false,
+        keywords,
+        None,
+        None,
+    );
 
     println!("Begin recording...");
     let (recorder, receiver) = std::sync::mpsc::channel();
@@ -66,8 +74,8 @@ fn main() -> Result<(), anyhow::Error> {
     recognizer(spotter, receiver);
 }
 
-fn recognizer(online_rec: KeywordSpotter, receiver: Receiver<Vec<f32>>) -> ! {
-    let mut last_text = String::new();
+fn recognizer(mut online_rec: KeywordSpottingStream, receiver: Receiver<Vec<f32>>) -> ! {
+    println!("Started!");
     loop {
         let samples = receiver.recv().unwrap();
         online_rec.accept_waveform(16000, samples);
@@ -77,8 +85,7 @@ fn recognizer(online_rec: KeywordSpotter, receiver: Receiver<Vec<f32>>) -> ! {
         }
 
         let result = online_rec.get_result();
-        if !result.is_empty() && last_text != result {
-            last_text = result.clone();
+        if !result.is_empty() {
             println!("{}", result.to_lowercase());
         }
     }

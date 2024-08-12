@@ -1,11 +1,16 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleRate};
-use sherpa_rs::transcribe::online::{OnlineRecognizer, Paraformer, Search, Transducer};
+use sherpa_rs::online::paraformer::Paraformer;
+use sherpa_rs::online::stream::recognizer::{RecognizerStream, Search};
+use sherpa_rs::online::stream::OnlineStream;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
+
+// websocket -> VAD -> hotword? -> ASR -> ?
+// websocket -> hotword? -> ASR -> ?
 
 fn main() -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
@@ -31,7 +36,7 @@ fn main() -> Result<(), anyhow::Error> {
     let tokens =
         Path::new("/home/lemonxh/下载/sherpa-onnx-streaming-paraformer-bilingual-zh-en/tokens.txt");
     let tr = Paraformer::new(encoder, decoder);
-    let online_rec = OnlineRecognizer::from_paraformer(
+    let online_rec = RecognizerStream::from_paraformer(
         tr,
         Some("cpu"),
         tokens,
@@ -64,7 +69,7 @@ fn main() -> Result<(), anyhow::Error> {
     recognizer(online_rec, receiver);
 }
 
-fn recognizer(online_rec: OnlineRecognizer, receiver: Receiver<Vec<f32>>) -> ! {
+fn recognizer(mut online_rec: RecognizerStream, receiver: Receiver<Vec<f32>>) -> ! {
     let mut last_text = String::new();
     let mut segment_index = 0;
     println!("current segment: {}", segment_index);
@@ -73,7 +78,7 @@ fn recognizer(online_rec: OnlineRecognizer, receiver: Receiver<Vec<f32>>) -> ! {
         online_rec.accept_waveform(16000, samples);
 
         while online_rec.is_ready() {
-            online_rec.decode();
+            online_rec.decode_stream();
         }
 
         let result = online_rec.get_result();

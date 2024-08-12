@@ -1,6 +1,5 @@
 pub mod add_punctuation;
 pub mod embedding_manager;
-pub mod keyword_spotting;
 pub mod language_id;
 pub mod online;
 pub mod speaker_id;

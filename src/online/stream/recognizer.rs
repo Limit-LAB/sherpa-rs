@@ -4,92 +4,18 @@ use std::{
 };
 
 use sherpa_rs_sys::{
-    SherpaOnnxCreateDisplay, SherpaOnnxCreateOnlineRecognizer, SherpaOnnxCreateOnlineStream,
-    SherpaOnnxDecodeOnlineStream, SherpaOnnxDestroyOnlineRecognizer,
-    SherpaOnnxDestroyOnlineRecognizerResult, SherpaOnnxDestroyOnlineStream,
-    SherpaOnnxFeatureConfig, SherpaOnnxGetOnlineStreamResult, SherpaOnnxIsOnlineStreamReady,
+    SherpaOnnxCreateOnlineRecognizer, SherpaOnnxCreateOnlineStream, SherpaOnnxFeatureConfig,
     SherpaOnnxOnlineCtcFstDecoderConfig, SherpaOnnxOnlineModelConfig,
-    SherpaOnnxOnlineParaformerModelConfig, SherpaOnnxOnlineRecognizer,
-    SherpaOnnxOnlineRecognizerConfig, SherpaOnnxOnlineStream, SherpaOnnxOnlineStreamAcceptWaveform,
-    SherpaOnnxOnlineStreamIsEndpoint, SherpaOnnxOnlineStreamReset,
-    SherpaOnnxOnlineTransducerModelConfig, SherpaOnnxOnlineZipformer2CtcModelConfig,
+    SherpaOnnxOnlineRecognizerConfig, SherpaOnnxOnlineStreamIsEndpoint,
+    SherpaOnnxOnlineStreamReset,
 };
 
-use crate::get_default_provider;
+use crate::{
+    get_default_provider,
+    online::{paraformer::Paraformer, transducer::Transducer, zipformer2_ctc::Zipformer2Ctc},
+};
 
-#[derive(Debug)]
-pub struct Transducer {
-    encoder: CString,
-    decoder: CString,
-    joiner: CString,
-}
-
-impl Transducer {
-    pub fn new(encoder: &Path, decoder: &Path, joiner: &Path) -> Self {
-        Self {
-            encoder: CString::new(encoder.to_str().unwrap()).unwrap(),
-            decoder: CString::new(decoder.to_str().unwrap()).unwrap(),
-            joiner: CString::new(joiner.to_str().unwrap()).unwrap(),
-        }
-    }
-
-    pub(crate) fn as_config(self) -> SherpaOnnxOnlineTransducerModelConfig {
-        SherpaOnnxOnlineTransducerModelConfig {
-            encoder: self.encoder.into_raw(),
-            decoder: self.decoder.into_raw(),
-            joiner: self.joiner.into_raw(),
-        }
-    }
-
-    pub(crate) fn model_type(&self) -> CString {
-        CString::new("transducer").unwrap()
-    }
-}
-
-#[derive(Debug)]
-pub struct Paraformer {
-    encoder: CString,
-    decoder: CString,
-}
-
-impl Paraformer {
-    pub fn new(encoder: &Path, decoder: &Path) -> Self {
-        Self {
-            encoder: CString::new(encoder.to_str().unwrap()).unwrap(),
-            decoder: CString::new(decoder.to_str().unwrap()).unwrap(),
-        }
-    }
-
-    fn as_config(self) -> SherpaOnnxOnlineParaformerModelConfig {
-        SherpaOnnxOnlineParaformerModelConfig {
-            encoder: self.encoder.into_raw(),
-            decoder: self.decoder.into_raw(),
-        }
-    }
-
-    fn model_type(&self) -> CString {
-        CString::new("paraformer").unwrap()
-    }
-}
-
-#[derive(Debug)]
-pub struct Zipformer2Ctc {
-    model: CString,
-}
-
-impl Zipformer2Ctc {
-    pub fn new(model: &Path) -> Self {
-        Self {
-            model: CString::new(model.to_str().unwrap()).unwrap(),
-        }
-    }
-
-    pub(crate) fn as_config(self) -> SherpaOnnxOnlineZipformer2CtcModelConfig {
-        SherpaOnnxOnlineZipformer2CtcModelConfig {
-            model: self.model.into_raw(),
-        }
-    }
-}
+use super::OnlineStream;
 
 #[derive(Debug)]
 pub enum Search {
@@ -106,23 +32,12 @@ impl Search {
     }
 }
 
-/// BPE not supported yet
-#[derive(Debug)]
-pub struct OnlineRecognizer {
-    recognizer: *mut SherpaOnnxOnlineRecognizer,
-    stream: *mut SherpaOnnxOnlineStream,
+pub struct RecognizerStream {
+    recognizer: *mut sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
+    stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
 }
 
-impl Drop for OnlineRecognizer {
-    fn drop(&mut self) {
-        unsafe {
-            SherpaOnnxDestroyOnlineStream(self.stream);
-            SherpaOnnxDestroyOnlineRecognizer(self.recognizer);
-        }
-    }
-}
-
-impl OnlineRecognizer {
+impl RecognizerStream {
     pub fn from_transducer(
         transducer: Transducer,
         provider: Option<&str>,
@@ -278,10 +193,21 @@ impl OnlineRecognizer {
         println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
         Self { recognizer, stream }
     }
+}
 
-    pub fn accept_waveform(&self, sample_rate: i32, samples: Vec<f32>) {
+impl Drop for RecognizerStream {
+    fn drop(&mut self) {
         unsafe {
-            SherpaOnnxOnlineStreamAcceptWaveform(
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineRecognizer(self.recognizer);
+        }
+    }
+}
+
+impl OnlineStream for RecognizerStream {
+    fn accept_waveform(&mut self, sample_rate: i32, samples: Vec<f32>) {
+        unsafe {
+            sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
                 self.stream,
                 sample_rate,
                 samples.as_ptr(),
@@ -290,68 +216,39 @@ impl OnlineRecognizer {
         }
     }
 
-    pub fn is_ready(&self) -> bool {
-        unsafe { SherpaOnnxIsOnlineStreamReady(self.recognizer, self.stream) != 0 }
-    }
-
-    pub fn decode(&self) {
+    fn decode_stream(&mut self) {
         unsafe {
-            SherpaOnnxDecodeOnlineStream(self.recognizer, self.stream);
+            sherpa_rs_sys::SherpaOnnxDecodeOnlineStream(self.recognizer, self.stream);
         }
     }
 
-    pub fn get_result(&self) -> String {
+    fn is_ready(&mut self) -> bool {
+        unsafe { sherpa_rs_sys::SherpaOnnxIsOnlineStreamReady(self.recognizer, self.stream) == 1 }
+    }
+
+    fn get_result(&mut self) -> String {
         unsafe {
-            let result_ptr = SherpaOnnxGetOnlineStreamResult(self.recognizer, self.stream);
-            let raw_result = result_ptr.read();
+            let result =
+                sherpa_rs_sys::SherpaOnnxGetOnlineStreamResult(self.recognizer, self.stream);
+            let raw_result = result.read();
             let text = CStr::from_ptr(raw_result.text);
-            let string = text.to_str().unwrap().to_string();
-            SherpaOnnxDestroyOnlineRecognizerResult(result_ptr);
-            string
+            let text = text.to_str().unwrap().to_string();
+            // let timestamps: &[f32] =
+            // std::slice::from_raw_parts(raw_result.timestamps, raw_result.count as usize);
+            let str = text;
+            // Free
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineRecognizerResult(result);
+            str
         }
     }
 
-    pub fn is_endpoint(&self) -> bool {
-        unsafe { SherpaOnnxOnlineStreamIsEndpoint(self.recognizer, self.stream) != 0 }
+    fn is_endpoint(&mut self) -> bool {
+        unsafe { SherpaOnnxOnlineStreamIsEndpoint(self.recognizer, self.stream) == 1 }
     }
 
-    pub fn reset(&self) {
+    fn reset(&mut self) {
         unsafe {
             SherpaOnnxOnlineStreamReset(self.recognizer, self.stream);
         }
     }
-
-    // pub fn shit() {
-    // while (!stop) {
-    //     const std::vector<float> &samples = alsa.Read(chunk);
-    //     SherpaOnnxOnlineStreamAcceptWaveform(stream, expected_sample_rate,
-    //                                          samples.data(), samples.size());
-    //     while (SherpaOnnxIsOnlineStreamReady(recognizer, stream)) {
-    //       SherpaOnnxDecodeOnlineStream(recognizer, stream);
-    //     }
-
-    //     const SherpaOnnxOnlineRecognizerResult *r =
-    //         SherpaOnnxGetOnlineStreamResult(recognizer, stream);
-
-    //     std::string text = r->text;
-    //     SherpaOnnxDestroyOnlineRecognizerResult(r);
-
-    //     if (!text.empty() && last_text != text) {
-    //       last_text = text;
-
-    //       std::transform(text.begin(), text.end(), text.begin(),
-    //                      [](auto c) { return std::tolower(c); });
-
-    //       SherpaOnnxPrint(display, segment_index, text.c_str());
-    //       fflush(stderr);
-    //     }
-
-    //     if (SherpaOnnxOnlineStreamIsEndpoint(recognizer, stream)) {
-    //       if (!text.empty()) {
-    //         ++segment_index;
-    //       }
-    //       SherpaOnnxOnlineStreamReset(recognizer, stream);
-    //     }
-    //   }
-    // }
 }
