@@ -37,6 +37,9 @@ pub struct RecognizerStream {
     stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
 }
 
+unsafe impl Send for RecognizerStream {}
+unsafe impl Sync for RecognizerStream {}
+
 impl RecognizerStream {
     pub fn from_transducer(
         transducer: Transducer,

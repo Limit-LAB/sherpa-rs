@@ -63,7 +63,7 @@ impl OfflineTtsModelConfig {
     ) -> Self {
         let debug = if debug { 1 } else { 0 };
 
-        let provider = provider.unwrap_or(get_default_provider());
+        let provider = provider.unwrap_or(get_default_provider().to_owned());
         let provider_c = CString::new(provider).unwrap();
 
         let cfg = sherpa_rs_sys::SherpaOnnxOfflineTtsModelConfig {
@@ -74,6 +74,7 @@ impl OfflineTtsModelConfig {
         };
         Self { cfg }
     }
+
 }
 
 impl OfflineTtsConfig {
