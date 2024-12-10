@@ -17,6 +17,8 @@ use crate::{
 
 use super::OnlineStream;
 
+use std::sync::Arc;
+
 #[derive(Debug)]
 pub enum Search {
     Greedy,
@@ -32,7 +34,7 @@ impl Search {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Recognizer {
     recognizer: *mut sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
 }
@@ -51,7 +53,7 @@ impl Recognizer {
         num_threads: Option<i32>,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
         let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
 
@@ -84,7 +86,7 @@ impl Recognizer {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Self { recognizer }
+        Arc::new(Self { recognizer })
     }
 
     pub fn from_paraformer(
@@ -97,7 +99,7 @@ impl Recognizer {
         num_threads: Option<i32>,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
         let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
 
@@ -131,7 +133,7 @@ impl Recognizer {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Self { recognizer }
+        Arc::new(Self { recognizer })
     }
 
     pub fn from_zipformer(
@@ -145,7 +147,7 @@ impl Recognizer {
         graph: Option<&Path>,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Self {
+    ) -> Arc<Self> {
         let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
         let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
         let graph_c = CString::new(graph.unwrap().to_str().unwrap()).unwrap();
@@ -184,7 +186,7 @@ impl Recognizer {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Self { recognizer }
+        Arc::new(Self { recognizer })
     }
 }
 
@@ -197,6 +199,7 @@ impl Drop for Recognizer {
 }
 
 pub struct Stream {
+    recognizer: Arc<Recognizer>,
     stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
     // display: *mut sherpa_rs_sys::SherpaOnnxDisplay,
 }
@@ -206,9 +209,10 @@ unsafe impl Sync for Stream {}
 
 impl Stream {
     pub fn from_recognizer(
-        recognizer: Recognizer,
+        recognizer: Arc<Recognizer>,
         // display: bool
     ) -> Self {
+        let recognizer = recognizer.clone();
         let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer.recognizer) };
         // let display = if display {
         //     unsafe { SherpaOnnxCreateDisplay() }
@@ -218,6 +222,7 @@ impl Stream {
 
         println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
         Self {
+            recognizer,
             stream,
             // display
         }
@@ -250,18 +255,23 @@ impl OnlineStream for Stream {
 
     fn decode_stream(&mut self) {
         unsafe {
-            sherpa_rs_sys::SherpaOnnxDecodeOnlineStream(self.recognizer, self.stream);
+            sherpa_rs_sys::SherpaOnnxDecodeOnlineStream(self.recognizer.recognizer, self.stream);
         }
     }
 
     fn is_ready(&mut self) -> bool {
-        unsafe { sherpa_rs_sys::SherpaOnnxIsOnlineStreamReady(self.recognizer, self.stream) == 1 }
+        unsafe {
+            sherpa_rs_sys::SherpaOnnxIsOnlineStreamReady(self.recognizer.recognizer, self.stream)
+                == 1
+        }
     }
 
     fn get_result(&mut self) -> String {
         unsafe {
-            let result =
-                sherpa_rs_sys::SherpaOnnxGetOnlineStreamResult(self.recognizer, self.stream);
+            let result = sherpa_rs_sys::SherpaOnnxGetOnlineStreamResult(
+                self.recognizer.recognizer,
+                self.stream,
+            );
             let raw_result = result.read();
             let text = CStr::from_ptr(raw_result.text);
             let text = text.to_str().unwrap().to_string();
@@ -275,12 +285,12 @@ impl OnlineStream for Stream {
     }
 
     fn is_endpoint(&mut self) -> bool {
-        unsafe { SherpaOnnxOnlineStreamIsEndpoint(self.recognizer, self.stream) == 1 }
+        unsafe { SherpaOnnxOnlineStreamIsEndpoint(self.recognizer.recognizer, self.stream) == 1 }
     }
 
     fn reset(&mut self) {
         unsafe {
-            SherpaOnnxOnlineStreamReset(self.recognizer, self.stream);
+            SherpaOnnxOnlineStreamReset(self.recognizer.recognizer, self.stream);
         }
     }
 }

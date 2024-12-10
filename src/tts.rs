@@ -74,7 +74,6 @@ impl OfflineTtsModelConfig {
         };
         Self { cfg }
     }
-
 }
 
 impl OfflineTtsConfig {

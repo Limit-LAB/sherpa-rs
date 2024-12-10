@@ -301,7 +301,6 @@ fn main() {
             if !dst.exists() {
                 std::fs::hard_link(asset.clone(), dst).unwrap();
             }
-            
 
             // Copy DLLs to examples as well
             if target_dir.join("examples").exists() {

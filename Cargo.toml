@@ -1,6 +1,6 @@
 [package]
 name = "sherpa-rs"
-version = "0.1.8-beta.2"
+version = "0.1.8-beta.3"
 edition = "2021"
 authors = ["thewh1teagle"]
 license = "MIT"
