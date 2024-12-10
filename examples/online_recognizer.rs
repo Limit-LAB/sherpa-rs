@@ -1,7 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleRate};
 use sherpa_rs::online::paraformer::Paraformer;
-use sherpa_rs::online::stream::recognizer::{RecognizerStream, Search};
+use sherpa_rs::online::stream::recognizer::{Recognizer, Search, Stream};
 use sherpa_rs::online::stream::OnlineStream;
 use std::fs::File;
 use std::io::BufWriter;
@@ -36,7 +36,7 @@ fn main() -> Result<(), anyhow::Error> {
     let tokens =
         Path::new("/home/lemonxh/下载/sherpa-onnx-streaming-paraformer-bilingual-zh-en/tokens.txt");
     let tr = Paraformer::new(encoder, decoder);
-    let online_rec = RecognizerStream::from_paraformer(
+    let online_rec = Recognizer::from_paraformer(
         tr,
         Some("cpu"),
         tokens,
@@ -46,6 +46,8 @@ fn main() -> Result<(), anyhow::Error> {
         None,
         None,
     );
+
+    let rec: Stream = Stream::from_recognizer(online_rec);
 
     println!("Begin recording...");
     let (recorder, receiver) = std::sync::mpsc::channel();
@@ -66,10 +68,10 @@ fn main() -> Result<(), anyhow::Error> {
 
     println!("Creating recognizer...");
 
-    recognizer(online_rec, receiver);
+    recognizer(rec, receiver);
 }
 
-fn recognizer(mut online_rec: RecognizerStream, receiver: Receiver<Vec<f32>>) -> ! {
+fn recognizer(mut online_rec: Stream, receiver: Receiver<Vec<f32>>) -> ! {
     let mut last_text = String::new();
     let mut segment_index = 0;
     println!("current segment: {}", segment_index);

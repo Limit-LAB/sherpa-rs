@@ -32,15 +32,14 @@ impl Search {
     }
 }
 
-pub struct RecognizerStream {
+pub struct Recognizer {
     recognizer: *mut sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
-    stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
 }
 
-unsafe impl Send for RecognizerStream {}
-unsafe impl Sync for RecognizerStream {}
+unsafe impl Send for Recognizer {}
+unsafe impl Sync for Recognizer {}
 
-impl RecognizerStream {
+impl Recognizer {
     pub fn from_transducer(
         transducer: Transducer,
         provider: Option<&str>,
@@ -84,9 +83,7 @@ impl RecognizerStream {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer) };
-        // let display = unsafe { SherpaOnnxCreateDisplay()}
-        Self { recognizer, stream }
+        Self { recognizer }
     }
 
     pub fn from_paraformer(
@@ -133,11 +130,7 @@ impl RecognizerStream {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer) };
-        // let display = unsafe { SherpaOnnxCreateDisplay()}
-
-        println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
-        Self { recognizer, stream }
+        Self { recognizer }
     }
 
     pub fn from_zipformer(
@@ -190,24 +183,59 @@ impl RecognizerStream {
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer) };
-        // let display = unsafe { SherpaOnnxCreateDisplay()}
-
-        println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
-        Self { recognizer, stream }
+        Self { recognizer }
     }
 }
 
-impl Drop for RecognizerStream {
+impl Drop for Recognizer {
     fn drop(&mut self) {
         unsafe {
-            sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
             sherpa_rs_sys::SherpaOnnxDestroyOnlineRecognizer(self.recognizer);
         }
     }
 }
 
-impl OnlineStream for RecognizerStream {
+pub struct Stream {
+    stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
+    // display: *mut sherpa_rs_sys::SherpaOnnxDisplay,
+}
+
+unsafe impl Send for Stream {}
+unsafe impl Sync for Stream {}
+
+impl Stream {
+    pub fn from_recognizer(
+        recognizer: Recognizer,
+        // display: bool
+    ) -> Self {
+        let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer.recognizer) };
+        // let display = if display {
+        //     unsafe { SherpaOnnxCreateDisplay() }
+        // } else {
+        //     std::ptr::null_mut()
+        // };
+
+        println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
+        Self {
+            stream,
+            // display
+        }
+    }
+}
+
+impl Drop for Stream {
+    fn drop(&mut self) {
+        unsafe {
+            // if self.display != std::ptr::null_mut() {
+            //     sherpa_rs_sys::SherpaOnnxDestroyDisplay(self.display);
+            // }
+
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
+        }
+    }
+}
+
+impl OnlineStream for Stream {
     fn accept_waveform(&mut self, sample_rate: i32, samples: Vec<f32>) {
         unsafe {
             sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
