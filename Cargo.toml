@@ -1,6 +1,6 @@
 [package]
 name = "sherpa-rs"
-version = "0.1.8-beta.0"
+version = "0.1.8-beta.1"
 edition = "2021"
 authors = ["thewh1teagle"]
 license = "MIT"
@@ -20,7 +20,7 @@ eyre = "0.6.12"
 hound = { version = "3.5.1" }
 log = "0.4.22"
 num-traits = "0.2.19"
-sherpa-rs-sys = { path = "sys", version = "0.1.8-beta.0" }
+sherpa-rs-sys = { path = "sys", version = "0.1.8-beta.1" }
 
 [dev-dependencies]
 clap = { version = "4.5.8", features = ["derive"] }
