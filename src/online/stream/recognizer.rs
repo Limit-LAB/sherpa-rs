@@ -32,6 +32,7 @@ impl Search {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Recognizer {
     recognizer: *mut sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
 }
