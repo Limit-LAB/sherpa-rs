@@ -3,6 +3,7 @@ use std::{
     path::Path,
 };
 
+use eyre::Result;
 use sherpa_rs_sys::{
     SherpaOnnxCreateOnlineRecognizer, SherpaOnnxCreateOnlineStream, SherpaOnnxFeatureConfig,
     SherpaOnnxOnlineCtcFstDecoderConfig, SherpaOnnxOnlineModelConfig,
@@ -15,7 +16,7 @@ use crate::{
     online::{paraformer::Paraformer, transducer::Transducer, zipformer2_ctc::Zipformer2Ctc},
 };
 
-use super::OnlineStream;
+use super::Stream;
 
 use std::sync::Arc;
 
@@ -26,7 +27,7 @@ pub enum Search {
 }
 
 impl Search {
-    fn into_raw(self) -> CString {
+    fn to_cstring(&self) -> CString {
         match self {
             Self::Greedy => CString::new("greedy_search").unwrap(),
             Self::Beam => CString::new("modified_beam_search").unwrap(),
@@ -36,11 +37,8 @@ impl Search {
 
 #[derive(Debug)]
 pub struct Recognizer {
-    recognizer: *mut sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
+    recognizer: *const sherpa_rs_sys::SherpaOnnxOnlineRecognizer,
 }
-
-unsafe impl Send for Recognizer {}
-unsafe impl Sync for Recognizer {}
 
 impl Recognizer {
     pub fn from_transducer(
@@ -53,17 +51,21 @@ impl Recognizer {
         num_threads: Option<i32>,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>> {
         let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
-        let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
+        let provider_c = CString::new(provider.unwrap_or(&get_default_provider())).unwrap();
+        let decoding_method = search.to_cstring();
+        let modeling_unit_c = CString::new("cjkchar").unwrap();
+        let hotwords_c =
+            hotwords.map(|p| CString::new(p.to_str().unwrap_or(&p.to_string_lossy())).unwrap());
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
         model_config.transducer = transducer.as_config();
-        model_config.tokens = tokens_c.into_raw();
+        model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = num_threads.unwrap_or(1);
-        model_config.provider = provider_c.into_raw();
+        model_config.provider = provider_c.as_ptr();
         model_config.debug = debug as i32;
-        model_config.modeling_unit = CString::new("cjkchar").unwrap().into_raw();
+        model_config.modeling_unit = modeling_unit_c.as_ptr();
 
         let mut rec_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineRecognizerConfig>() };
         rec_config.feat_config = SherpaOnnxFeatureConfig {
@@ -71,22 +73,23 @@ impl Recognizer {
             feature_dim: 80,
         };
         rec_config.model_config = model_config;
-        rec_config.decoding_method = search.into_raw().into_raw();
+        rec_config.decoding_method = decoding_method.as_ptr();
         rec_config.max_active_paths = 4;
         rec_config.enable_endpoint = 1;
         rec_config.rule1_min_trailing_silence = 2.4;
         rec_config.rule2_min_trailing_silence = 1.2;
         rec_config.rule3_min_utterance_length = 300.0;
 
-        if hotwords.is_some() {
-            let hotwords_c =
-                hotwords.map(|p| CString::new(p.to_str().unwrap()).unwrap().into_raw());
-            rec_config.hotwords_file = hotwords_c.unwrap_or(std::ptr::null_mut());
+        if let Some(ref hw) = hotwords_c {
+            rec_config.hotwords_file = hw.as_ptr();
             rec_config.hotwords_score = hotwords_score.unwrap_or(1.5);
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Arc::new(Self { recognizer })
+        if recognizer.is_null() {
+            eyre::bail!("Failed to create recognizer");
+        }
+        Ok(Arc::new(Self { recognizer }))
     }
 
     pub fn from_paraformer(
@@ -99,18 +102,23 @@ impl Recognizer {
         num_threads: Option<i32>,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>> {
         let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
-        let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
+        let provider_c = CString::new(provider.unwrap_or(&get_default_provider())).unwrap();
+        let decoding_method_c = search.to_cstring();
+        let model_type_c = paraformer.model_type();
+        let modeling_unit_c = CString::new("cjkchar").unwrap();
+        let hotwords_c =
+            hotwords.map(|p| CString::new(p.to_str().unwrap_or(&p.to_string_lossy())).unwrap());
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
-        model_config.model_type = paraformer.model_type().into_raw();
+        model_config.model_type = model_type_c.as_ptr();
         model_config.paraformer = paraformer.as_config();
-        model_config.tokens = tokens_c.into_raw();
+        model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = num_threads.unwrap_or(1);
-        model_config.provider = provider_c.into_raw();
+        model_config.provider = provider_c.as_ptr();
         model_config.debug = debug as i32;
-        model_config.modeling_unit = CString::new("cjkchar").unwrap().into_raw();
+        model_config.modeling_unit = modeling_unit_c.as_ptr();
 
         let mut rec_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineRecognizerConfig>() };
         rec_config.feat_config = SherpaOnnxFeatureConfig {
@@ -118,22 +126,24 @@ impl Recognizer {
             feature_dim: 80,
         };
         rec_config.model_config = model_config;
-        rec_config.decoding_method = search.into_raw().into_raw();
+        rec_config.decoding_method = decoding_method_c.as_ptr();
         rec_config.max_active_paths = 4;
         rec_config.enable_endpoint = 1;
         rec_config.rule1_min_trailing_silence = 2.4;
         rec_config.rule2_min_trailing_silence = 1.2;
         rec_config.rule3_min_utterance_length = 300.0;
 
-        if hotwords.is_some() {
-            let hotwords_c =
-                hotwords.map(|p| CString::new(p.to_str().unwrap()).unwrap().into_raw());
-            rec_config.hotwords_file = hotwords_c.unwrap_or(std::ptr::null_mut());
+        if let Some(ref hw) = hotwords_c {
+            rec_config.hotwords_file = hw.as_ptr();
             rec_config.hotwords_score = hotwords_score.unwrap_or(1.5);
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Arc::new(Self { recognizer })
+        if recognizer.is_null() {
+            eyre::bail!("Failed to create recognizer");
+        }
+
+        Ok(Arc::new(Self { recognizer }))
     }
 
     pub fn from_zipformer(
@@ -144,22 +154,25 @@ impl Recognizer {
         debug: bool,
 
         num_threads: Option<i32>,
-        graph: Option<&Path>,
+        graph: &Path,
         hotwords: Option<&Path>,
         hotwords_score: Option<f32>,
-    ) -> Arc<Self> {
-        let tokens_c = CString::new(tokens.to_str().unwrap()).unwrap();
-        let provider_c = CString::new(provider.unwrap_or(get_default_provider())).unwrap();
-        let graph_c = CString::new(graph.unwrap().to_str().unwrap()).unwrap();
+    ) -> Result<Arc<Self>> {
+        let tokens_c = CString::new(tokens.to_str().unwrap_or(&tokens.to_string_lossy())).unwrap();
+        let provider_c = CString::new(provider.unwrap_or(&get_default_provider())).unwrap();
+        let graph_c = CString::new(graph.to_str().unwrap_or(&graph.to_string_lossy())).unwrap();
+        let hotwords_c =
+            hotwords.map(|p| CString::new(p.to_str().unwrap_or(&p.to_string_lossy())).unwrap());
+        let decoding_method_c = search.to_cstring();
+        let modeling_unit_c = CString::new("cjkchar").unwrap();
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
-        // model_config.model_type = zipformer.model_type().into_raw();
         model_config.zipformer2_ctc = zipformer.as_config();
-        model_config.tokens = tokens_c.into_raw();
+        model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = num_threads.unwrap_or(1);
-        model_config.provider = provider_c.into_raw();
+        model_config.provider = provider_c.as_ptr();
         model_config.debug = debug as i32;
-        model_config.modeling_unit = CString::new("cjkchar").unwrap().into_raw();
+        model_config.modeling_unit = modeling_unit_c.as_ptr();
 
         let mut rec_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineRecognizerConfig>() };
         rec_config.feat_config = SherpaOnnxFeatureConfig {
@@ -167,26 +180,32 @@ impl Recognizer {
             feature_dim: 80,
         };
         rec_config.model_config = model_config;
-        rec_config.decoding_method = search.into_raw().into_raw();
+        rec_config.decoding_method = decoding_method_c.as_ptr();
         rec_config.max_active_paths = 4;
         rec_config.enable_endpoint = 1;
         rec_config.rule1_min_trailing_silence = 2.4;
         rec_config.rule2_min_trailing_silence = 1.2;
         rec_config.rule3_min_utterance_length = 300.0;
         rec_config.ctc_fst_decoder_config = SherpaOnnxOnlineCtcFstDecoderConfig {
-            graph: graph_c.into_raw(),
+            graph: graph_c.as_ptr(),
             max_active: 3000,
         };
 
-        if hotwords.is_some() {
-            let hotwords_c =
-                hotwords.map(|p| CString::new(p.to_str().unwrap()).unwrap().into_raw());
-            rec_config.hotwords_file = hotwords_c.unwrap_or(std::ptr::null_mut());
+        if let Some(ref hw) = hotwords_c {
+            rec_config.hotwords_file = hw.as_ptr();
             rec_config.hotwords_score = hotwords_score.unwrap_or(1.5);
         }
 
         let recognizer = unsafe { SherpaOnnxCreateOnlineRecognizer(&rec_config) };
-        Arc::new(Self { recognizer })
+        if recognizer.is_null() {
+            eyre::bail!("Failed to create recognizer");
+        }
+
+        Ok(Arc::new(Self { recognizer }))
+    }
+
+    pub fn create_stream(self: &Arc<Self>) -> Result<RecognizerStream> {
+        RecognizerStream::new(Arc::clone(self))
     }
 }
 
@@ -198,57 +217,38 @@ impl Drop for Recognizer {
     }
 }
 
-pub struct Stream {
+pub struct RecognizerStream {
     recognizer: Arc<Recognizer>,
-    stream: *mut sherpa_rs_sys::SherpaOnnxOnlineStream,
-    // display: *mut sherpa_rs_sys::SherpaOnnxDisplay,
+    stream: *const sherpa_rs_sys::SherpaOnnxOnlineStream,
 }
 
-unsafe impl Send for Stream {}
-unsafe impl Sync for Stream {}
-
-impl Stream {
-    pub fn from_recognizer(
-        recognizer: Arc<Recognizer>,
-        // display: bool
-    ) -> Self {
-        let recognizer = recognizer.clone();
+impl RecognizerStream {
+    pub fn new(recognizer: Arc<Recognizer>) -> Result<Self> {
         let stream = unsafe { SherpaOnnxCreateOnlineStream(recognizer.recognizer) };
-        // let display = if display {
-        //     unsafe { SherpaOnnxCreateDisplay() }
-        // } else {
-        //     std::ptr::null_mut()
-        // };
-
-        println!("recognizer: {:?}, stream: {:?}", recognizer, stream);
-        Self {
-            recognizer,
-            stream,
-            // display
+        if stream.is_null() {
+            eyre::bail!("Failed to create stream");
         }
+
+        Ok(Self { recognizer, stream })
     }
 }
 
-impl Drop for Stream {
+impl Drop for RecognizerStream {
     fn drop(&mut self) {
         unsafe {
-            // if self.display != std::ptr::null_mut() {
-            //     sherpa_rs_sys::SherpaOnnxDestroyDisplay(self.display);
-            // }
-
             sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(self.stream);
         }
     }
 }
 
-impl OnlineStream for Stream {
-    fn accept_waveform(&mut self, sample_rate: i32, samples: Vec<f32>) {
+impl Stream for RecognizerStream {
+    fn accept_waveform(&mut self, sample_rate: i32, samples: impl AsRef<[f32]>) {
         unsafe {
             sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
                 self.stream,
                 sample_rate,
-                samples.as_ptr(),
-                samples.len() as i32,
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
             );
         }
     }
@@ -268,19 +268,15 @@ impl OnlineStream for Stream {
 
     fn get_result(&mut self) -> String {
         unsafe {
-            let result = sherpa_rs_sys::SherpaOnnxGetOnlineStreamResult(
+            let raw_result = sherpa_rs_sys::SherpaOnnxGetOnlineStreamResult(
                 self.recognizer.recognizer,
                 self.stream,
             );
-            let raw_result = result.read();
-            let text = CStr::from_ptr(raw_result.text);
-            let text = text.to_str().unwrap().to_string();
-            // let timestamps: &[f32] =
-            // std::slice::from_raw_parts(raw_result.timestamps, raw_result.count as usize);
-            let str = text;
-            // Free
-            sherpa_rs_sys::SherpaOnnxDestroyOnlineRecognizerResult(result);
-            str
+            let result = raw_result.read();
+            let text = CStr::from_ptr(result.text).to_string_lossy().to_string();
+
+            sherpa_rs_sys::SherpaOnnxDestroyOnlineRecognizerResult(raw_result);
+            text
         }
     }
 

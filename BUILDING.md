@@ -17,8 +17,7 @@ For convenience, I recommend installing these packages.
 Additionally, when using wget to run examples, use `wget.exe` instead.
 
 ```console
-winget install -e --id GnuWin32.Tar
-winget install -e --id JernejSimoncic.Wget
+winget install llvm
 ```
 
 ### Prepare repository

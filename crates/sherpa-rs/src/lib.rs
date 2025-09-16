@@ -5,6 +5,7 @@ pub mod embedding_manager;
 pub mod keyword_spot;
 pub mod language_id;
 pub mod moonshine;
+pub mod online;
 pub mod paraformer;
 pub mod punctuate;
 pub mod sense_voice;

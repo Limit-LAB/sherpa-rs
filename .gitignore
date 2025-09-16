@@ -6,7 +6,6 @@ tokens.txt
 .DS_Store
 venv/
 vits-piper*
-sherpa-onnx/
 *.wav
 *.vocab
 !samples/*.wav
@@ -19,7 +18,6 @@ sherpa-onnx-moonshine-*
 !checksum.txt
 sherpa-onnx-v*
 jniLibs
-sys/src/bindings.rs
 !sys/dist.txt
 sherpa-onnx-punct*
 vits-*
@@ -29,5 +27,4 @@ jniLibs/
 build/
 kokoro-en-*/
 matcha-*
-crates/sherpa-rs-sys/sherpa-onnx/scripts/
 kokoro-multi-lang-v1_0/
