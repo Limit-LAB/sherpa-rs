@@ -9,7 +9,7 @@ use sherpa_rs_sys::{
     SherpaOnnxFeatureConfig, SherpaOnnxKeywordSpotterConfig, SherpaOnnxOnlineModelConfig,
 };
 
-use crate::{get_default_provider, online::transducer::Transducer};
+use crate::{online::transducer::Transducer, OnnxConfig};
 
 use super::Stream;
 
@@ -20,25 +20,28 @@ pub struct KeywordSpotter {
 impl KeywordSpotter {
     pub fn from_transducer(
         transducer: Transducer,
-        provider: Option<&str>,
         tokens: &Path,
-        debug: bool,
+        keyword_file: &Path,
 
-        file: &Path,
-        num_threads: Option<i32>,
+        onnx_config: OnnxConfig,
     ) -> Result<Arc<Self>> {
         let tokens_c = CString::new(tokens.to_str().unwrap_or(&tokens.to_string_lossy())).unwrap();
-        let provider_c = CString::new(provider.unwrap_or(&get_default_provider())).unwrap();
+        let provider_c = CString::new(onnx_config.provider).unwrap();
         let model_type_c = transducer.model_type();
         let modeling_unit_c = CString::new("cjkchar").unwrap();
-        let files_c = CString::new(file.to_str().unwrap_or(&file.to_string_lossy())).unwrap();
+        let files_c = CString::new(
+            keyword_file
+                .to_str()
+                .unwrap_or(&keyword_file.to_string_lossy()),
+        )
+        .unwrap();
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
         model_config.transducer = transducer.as_config();
         model_config.tokens = tokens_c.as_ptr();
-        model_config.num_threads = num_threads.unwrap_or(1);
+        model_config.num_threads = onnx_config.num_threads;
         model_config.provider = provider_c.as_ptr();
-        model_config.debug = debug as i32;
+        model_config.debug = onnx_config.debug as i32;
         model_config.modeling_unit = modeling_unit_c.as_ptr();
         model_config.model_type = model_type_c.as_ptr();
 
@@ -67,6 +70,9 @@ impl KeywordSpotter {
         KeywordSpottingStream::new(self.clone(), keywords)
     }
 }
+
+unsafe impl Send for KeywordSpotter {}
+unsafe impl Sync for KeywordSpotter {}
 
 impl Drop for KeywordSpotter {
     fn drop(&mut self) {
