@@ -18,11 +18,12 @@ impl Transducer {
         }
     }
 
-    pub(crate) fn as_config(self) -> SherpaOnnxOnlineTransducerModelConfig {
+    /// Safety: The caller must ensure that the returned config is not used after the lifetime of self
+    pub(crate) unsafe fn as_config(&self) -> SherpaOnnxOnlineTransducerModelConfig {
         SherpaOnnxOnlineTransducerModelConfig {
-            encoder: self.encoder.into_raw(),
-            decoder: self.decoder.into_raw(),
-            joiner: self.joiner.into_raw(),
+            encoder: self.encoder.as_ptr(),
+            decoder: self.decoder.as_ptr(),
+            joiner: self.joiner.as_ptr(),
         }
     }
 

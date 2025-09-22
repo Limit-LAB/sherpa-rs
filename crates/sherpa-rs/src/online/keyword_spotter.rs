@@ -37,7 +37,7 @@ impl KeywordSpotter {
         .unwrap();
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
-        model_config.transducer = transducer.as_config();
+        model_config.transducer = unsafe { transducer.as_config() };
         model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = onnx_config.num_threads;
         model_config.provider = provider_c.as_ptr();

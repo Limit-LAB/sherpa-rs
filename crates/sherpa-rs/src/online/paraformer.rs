@@ -16,10 +16,11 @@ impl Paraformer {
         }
     }
 
-    pub(crate) fn as_config(self) -> SherpaOnnxOnlineParaformerModelConfig {
+    /// Safety: The caller must ensure that the returned config is not used after the lifetime of self
+    pub(crate) unsafe fn as_config(&self) -> SherpaOnnxOnlineParaformerModelConfig {
         SherpaOnnxOnlineParaformerModelConfig {
-            encoder: self.encoder.into_raw(),
-            decoder: self.decoder.into_raw(),
+            encoder: self.encoder.as_ptr(),
+            decoder: self.decoder.as_ptr(),
         }
     }
 

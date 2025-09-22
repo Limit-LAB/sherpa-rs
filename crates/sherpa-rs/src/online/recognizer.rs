@@ -58,7 +58,7 @@ impl Recognizer {
             hotwords.map(|p| CString::new(p.to_str().unwrap_or(&p.to_string_lossy())).unwrap());
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
-        model_config.transducer = transducer.as_config();
+        model_config.transducer = unsafe { transducer.as_config() };
         model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = onnx_config.num_threads;
         model_config.provider = provider_c.as_ptr();
@@ -109,7 +109,7 @@ impl Recognizer {
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
         model_config.model_type = model_type_c.as_ptr();
-        model_config.paraformer = paraformer.as_config();
+        model_config.paraformer = unsafe { paraformer.as_config() };
         model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = onnx_config.num_threads;
         model_config.provider = provider_c.as_ptr();
@@ -161,7 +161,7 @@ impl Recognizer {
         let modeling_unit_c = CString::new("cjkchar").unwrap();
 
         let mut model_config = unsafe { std::mem::zeroed::<SherpaOnnxOnlineModelConfig>() };
-        model_config.zipformer2_ctc = zipformer.as_config();
+        model_config.zipformer2_ctc = unsafe { zipformer.as_config() };
         model_config.tokens = tokens_c.as_ptr();
         model_config.num_threads = onnx_config.num_threads;
         model_config.provider = provider_c.as_ptr();

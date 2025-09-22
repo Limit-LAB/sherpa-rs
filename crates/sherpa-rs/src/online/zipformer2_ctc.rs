@@ -14,9 +14,10 @@ impl Zipformer2Ctc {
         }
     }
 
-    pub(crate) fn as_config(self) -> SherpaOnnxOnlineZipformer2CtcModelConfig {
+    /// Safety: The caller must ensure that the returned config is not used after the lifetime of self
+    pub(crate) unsafe fn as_config(&self) -> SherpaOnnxOnlineZipformer2CtcModelConfig {
         SherpaOnnxOnlineZipformer2CtcModelConfig {
-            model: self.model.into_raw(),
+            model: self.model.as_ptr(),
         }
     }
 }
