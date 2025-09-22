@@ -269,6 +269,9 @@ impl Stream for RecognizerStream {
                 self.recognizer.recognizer,
                 self.stream,
             );
+            if raw_result.is_null() {
+                return String::new();
+            }
             let result = raw_result.read();
             let text = CStr::from_ptr(result.text).to_string_lossy().to_string();
 
@@ -284,6 +287,12 @@ impl Stream for RecognizerStream {
     fn reset(&mut self) {
         unsafe {
             SherpaOnnxOnlineStreamReset(self.recognizer.recognizer, self.stream);
+        }
+    }
+
+    fn finish(&mut self) {
+        unsafe {
+            sherpa_rs_sys::SherpaOnnxOnlineStreamInputFinished(self.stream);
         }
     }
 }
