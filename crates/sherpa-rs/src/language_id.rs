@@ -19,7 +19,7 @@ pub struct SpokenLanguageIdConfig {
 }
 
 impl SpokenLanguageId {
-    pub fn new(config: SpokenLanguageIdConfig) -> Self {
+    pub fn new(config: SpokenLanguageIdConfig) -> Result<Self> {
         let debug = config.debug.into();
 
         let decoder = cstring_from_str(&config.decoder);
@@ -40,7 +40,10 @@ impl SpokenLanguageId {
         let slid =
             unsafe { sherpa_rs_sys::SherpaOnnxCreateSpokenLanguageIdentification(&sherpa_config) };
 
-        Self { slid }
+        if slid.is_null() {
+            bail!("Failed to create SpokenLanguageId");
+        }
+        Ok(Self { slid })
     }
 
     pub fn compute(&mut self, samples: impl AsRef<[f32]>, sample_rate: u32) -> Result<String> {

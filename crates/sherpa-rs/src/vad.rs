@@ -1,5 +1,5 @@
 use crate::{get_default_provider, utils::cstring_from_str};
-use eyre::Result;
+use eyre::{bail, Result};
 
 #[derive(Debug)]
 pub struct Vad {
@@ -72,6 +72,10 @@ impl Vad {
                 &vad_config,
                 buffer_size_in_seconds,
             );
+
+            if vad.is_null() {
+                bail!("Failed to create VoiceActivityDetector");
+            }
 
             Ok(Self { vad })
         }

@@ -42,11 +42,12 @@ impl EmbeddingExtractor {
         };
         let extractor =
             unsafe { sherpa_rs_sys::SherpaOnnxCreateSpeakerEmbeddingExtractor(&extractor_config) };
+        if extractor.is_null() {
+            bail!("Failed to create SherpaOnnxSpeakerEmbeddingExtractor");
+        }
         // Assume embedding size is known or can be retrieved
         let embedding_size =
-            unsafe { sherpa_rs_sys::SherpaOnnxSpeakerEmbeddingExtractorDim(extractor) }
-                .try_into()
-                .unwrap();
+            unsafe { sherpa_rs_sys::SherpaOnnxSpeakerEmbeddingExtractorDim(extractor) } as _;
         Ok(Self {
             extractor,
             embedding_size,
