@@ -1,44 +1,25 @@
 /*
-wget https://github.com/snakers4/silero-vad/raw/master/files/silero_vad.onnx
+Detect speech in audio file and segment it (mark start and slow time)
+
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
 wget https://github.com/thewh1teagle/sherpa-rs/releases/download/v0.1.0/motivation.wav -O motivation.wav
-cargo run --example vad_segment
+cargo run --example vad_segment motivation.wav
 */
-use eyre::{bail, Result};
 use sherpa_rs::vad::{Vad, VadConfig};
-use std::io::Cursor;
 
-fn main() -> Result<()> {
-    let path = std::env::args().nth(1).expect("Missing file path argument");
-    let audio_data = std::fs::read(path)?;
+fn main() {
+    let file_path = std::env::args().nth(1).expect("Missing file path argument");
+    let (mut samples, sample_rate) = sherpa_rs::read_audio_file(&file_path).unwrap();
+    assert_eq!(sample_rate, 16000, "The sample rate must be 16000.");
 
-    let cursor = Cursor::new(audio_data);
-    let mut reader = hound::WavReader::new(cursor)?;
-    let sample_rate = reader.spec().sample_rate as i32;
-
-    if sample_rate != 16000 {
-        bail!("The sample rate must be 16000.");
-    }
-
-    let mut samples: Vec<f32> = reader
-        .samples::<i16>()
-        .map(|s| s.unwrap() as f32 / i16::MAX as f32)
-        .collect();
-
-    let model = "silero_vad.onnx".into();
     let window_size: usize = 512;
-    let config = VadConfig::new(
-        model,
-        0.5,
-        0.5,
-        0.5,
-        sample_rate,
-        window_size.try_into().unwrap(),
-        None,
-        None,
-        Some(true),
-    );
+    let config = VadConfig {
+        model: "silero_vad.onnx".into(),
+        window_size: window_size as i32,
+        ..Default::default()
+    };
 
-    let mut vad = Vad::new_from_config(config, 3.0).unwrap();
+    let mut vad = Vad::new(config, 3.0).unwrap();
     while samples.len() > window_size {
         let window = &samples[..window_size];
         vad.accept_waveform(window.to_vec()); // Convert slice to Vec
@@ -53,5 +34,4 @@ fn main() -> Result<()> {
         }
         samples = samples[window_size..].to_vec(); // Move the remaining samples to the next iteration
     }
-    Ok(())
 }

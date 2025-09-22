@@ -9,15 +9,21 @@ Rust bindings to [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
 
 - Spoken language detection
 - Speaker embedding (labeling)
+- Speaker diarization
 - Speech to text
 - Text to speech
+- Text punctuation
 - Voice activity detection
+- Audio tagging
+- Keyword spotting
 
 ## Supported Platforms
 
 - Windows
 - Linux
 - macOS
+- Android
+- IOS
 
 ## Install
 
@@ -34,11 +40,20 @@ Please see [BUILDING.md](BUILDING.md).
 - `cuda`: enable CUDA support
 - `directml`: enable DirectML support
 - `tts`: enable TTS
+- `download-binaries`: use prebuilt sherpa-onnx libraries for faster builds. cached.
+- `static`: use static sherpa-onnx libraries and link them statically.
+- `sys`: expose raw c bindings (sys crate)
 
-## Docs
+## Documentation
 
-See [sherpa/intro.html](https://k2-fsa.github.io/sherpa/intro.html)
+For the documentation on `sherpa_rs`, please visit [docs.rs/sherpa_rs](https://docs.rs/sherpa-rs/latest/sherpa_rs).
+
+For documentation on `sherpa-onnx`, refer to the [sherpa/intro.html](https://k2-fsa.github.io/sherpa/intro.html).
 
 ## Examples
 
 See [examples](examples)
+
+## Models
+
+All pretrained models available at [sherpa/onnx/pretrained_models](https://k2-fsa.github.io/sherpa/onnx/pretrained_models/index.html)
