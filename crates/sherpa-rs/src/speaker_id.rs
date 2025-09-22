@@ -55,7 +55,7 @@ impl EmbeddingExtractor {
 
     pub fn compute_speaker_embedding(
         &mut self,
-        samples: Vec<f32>,
+        samples: impl AsRef<[f32]>,
         sample_rate: u32,
     ) -> Result<Vec<f32>> {
         unsafe {
@@ -68,12 +68,14 @@ impl EmbeddingExtractor {
             sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
                 stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len() as i32,
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
             );
             sherpa_rs_sys::SherpaOnnxOnlineStreamInputFinished(stream);
 
-            if !self.is_ready(stream) {
+            if sherpa_rs_sys::SherpaOnnxSpeakerEmbeddingExtractorIsReady(self.extractor, stream)
+                == 0
+            {
                 bail!("Embedding extractor is not ready");
             }
 
@@ -90,18 +92,6 @@ impl EmbeddingExtractor {
             sherpa_rs_sys::SherpaOnnxDestroyOnlineStream(stream);
             sherpa_rs_sys::SherpaOnnxSpeakerEmbeddingExtractorDestroyEmbedding(embedding_ptr);
             Ok(embedding)
-        }
-    }
-
-    #[allow(clippy::missing_safety_doc)]
-    pub unsafe fn is_ready(
-        &mut self,
-        stream: *const sherpa_rs_sys::SherpaOnnxOnlineStream,
-    ) -> bool {
-        unsafe {
-            let result =
-                sherpa_rs_sys::SherpaOnnxSpeakerEmbeddingExtractorIsReady(self.extractor, stream);
-            result != 0
         }
     }
 }

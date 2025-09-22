@@ -13,11 +13,12 @@ pub struct SpeakerMatch {
 }
 
 impl EmbeddingManager {
-    pub fn new(dimension: i32) -> Self {
-        unsafe {
-            let manager = sherpa_rs_sys::SherpaOnnxCreateSpeakerEmbeddingManager(dimension);
-            Self { manager }
+    pub fn new(dimension: i32) -> Result<Self> {
+        let manager = unsafe { sherpa_rs_sys::SherpaOnnxCreateSpeakerEmbeddingManager(dimension) };
+        if manager.is_null() {
+            bail!("Failed to create SpeakerEmbeddingManager");
         }
+        Ok(Self { manager })
     }
 
     pub fn search(&mut self, embedding: &[f32], threshold: f32) -> Option<String> {

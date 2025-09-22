@@ -92,10 +92,9 @@ impl Diarize {
 
     pub fn compute(
         &mut self,
-        mut samples: Vec<f32>,
+        samples: impl AsRef<[f32]>,
         progress_callback: Option<ProgressCallback>,
     ) -> Result<Vec<Segment>> {
-        let samples_ptr = samples.as_mut_ptr();
         let mut segments = Vec::new();
         unsafe {
             let mut callback_box =
@@ -107,8 +106,8 @@ impl Diarize {
 
             let result = sherpa_rs_sys::SherpaOnnxOfflineSpeakerDiarizationProcessWithCallback(
                 self.sd,
-                samples_ptr,
-                samples.len() as i32,
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
                 if callback_box.is_some() {
                     Some(progress_callback_wrapper)
                 } else {

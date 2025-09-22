@@ -117,14 +117,18 @@ impl WhisperRecognizer {
         Ok(Self { recognizer })
     }
 
-    pub fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> WhisperRecognizerResult {
+    pub fn transcribe(
+        &mut self,
+        sample_rate: u32,
+        samples: impl AsRef<[f32]>,
+    ) -> WhisperRecognizerResult {
         unsafe {
             let stream = sherpa_rs_sys::SherpaOnnxCreateOfflineStream(self.recognizer);
             sherpa_rs_sys::SherpaOnnxAcceptWaveformOffline(
                 stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len().try_into().unwrap(),
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as _,
             );
             sherpa_rs_sys::SherpaOnnxDecodeOfflineStream(self.recognizer, stream);
             let result_ptr = sherpa_rs_sys::SherpaOnnxGetOfflineStreamResult(stream);

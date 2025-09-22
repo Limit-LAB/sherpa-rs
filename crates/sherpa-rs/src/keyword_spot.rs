@@ -119,7 +119,7 @@ impl KeywordSpot {
 
     pub fn extract_keyword(
         &mut self,
-        samples: Vec<f32>,
+        samples: impl AsRef<[f32]>,
         sample_rate: u32,
     ) -> Result<Option<String>> {
         // Create keyword spotting stream
@@ -127,8 +127,8 @@ impl KeywordSpot {
             sherpa_rs_sys::SherpaOnnxOnlineStreamAcceptWaveform(
                 self.stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len() as i32,
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
             );
             sherpa_rs_sys::SherpaOnnxOnlineStreamInputFinished(self.stream);
             while sherpa_rs_sys::SherpaOnnxIsKeywordStreamReady(self.spotter, self.stream) == 1 {

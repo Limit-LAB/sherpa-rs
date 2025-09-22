@@ -106,14 +106,12 @@ impl Vad {
         }
     }
 
-    pub fn accept_waveform(&mut self, mut samples: Vec<f32>) {
-        let samples_ptr = samples.as_mut_ptr();
-        let samples_length = samples.len();
+    pub fn accept_waveform(&mut self, samples: impl AsRef<[f32]>) {
         unsafe {
             sherpa_rs_sys::SherpaOnnxVoiceActivityDetectorAcceptWaveform(
                 self.vad,
-                samples_ptr,
-                samples_length.try_into().unwrap(),
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
             );
         };
     }

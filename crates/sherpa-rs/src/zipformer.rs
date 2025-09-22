@@ -86,14 +86,14 @@ impl ZipFormer {
         Ok(Self { recognizer })
     }
 
-    pub fn decode(&mut self, sample_rate: u32, samples: Vec<f32>) -> String {
+    pub fn decode(&mut self, sample_rate: u32, samples: impl AsRef<[f32]>) -> String {
         unsafe {
             let stream = sherpa_rs_sys::SherpaOnnxCreateOfflineStream(self.recognizer);
             sherpa_rs_sys::SherpaOnnxAcceptWaveformOffline(
                 stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len().try_into().unwrap(),
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as _,
             );
             sherpa_rs_sys::SherpaOnnxDecodeOfflineStream(self.recognizer, stream);
             let result_ptr = sherpa_rs_sys::SherpaOnnxGetOfflineStreamResult(stream);

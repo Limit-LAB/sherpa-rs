@@ -5,6 +5,13 @@ use crate::{
     utils::{cstr_to_string, cstring_from_str},
 };
 
+#[derive(Debug, Clone)]
+pub struct AudioTagEvent {
+    pub name: String,
+    pub index: i32,
+    pub prob: f32,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct AudioTagConfig {
     pub model: String,
@@ -54,15 +61,23 @@ impl AudioTag {
         })
     }
 
-    pub fn compute(&mut self, samples: Vec<f32>, sample_rate: u32) -> Vec<String> {
+    pub fn compute(
+        &mut self,
+        samples: impl AsRef<[f32]>,
+        sample_rate: u32,
+    ) -> Result<Vec<AudioTagEvent>> {
         let mut events = Vec::new();
         unsafe {
             let stream = sherpa_rs_sys::SherpaOnnxAudioTaggingCreateOfflineStream(self.audio_tag);
+            if stream.is_null() {
+                bail!("Failed to create SherpaOnnxOfflineStream");
+            }
+
             sherpa_rs_sys::SherpaOnnxAcceptWaveformOffline(
                 stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len() as i32,
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as i32,
             );
 
             let results = sherpa_rs_sys::SherpaOnnxAudioTaggingCompute(
@@ -70,16 +85,23 @@ impl AudioTag {
                 stream,
                 self.config.top_k,
             );
-
-            for i in 0..self.config.top_k {
-                let event = *results.add(i.try_into().unwrap());
-                let event_name = cstr_to_string((*event).name as _);
-                events.push(event_name);
+            if results.is_null() {
+                bail!("Failed to compute audio tagging");
             }
 
+            for i in 0..self.config.top_k {
+                let event = *results.add(i as _).read();
+                events.push(AudioTagEvent {
+                    name: cstr_to_string(event.name as _),
+                    index: event.index,
+                    prob: event.prob,
+                });
+            }
+
+            sherpa_rs_sys::SherpaOnnxAudioTaggingFreeResults(results);
             sherpa_rs_sys::SherpaOnnxDestroyOfflineStream(stream);
         }
-        events
+        Ok(events)
     }
 }
 

@@ -107,7 +107,6 @@ impl MoonshineRecognizer {
         };
 
         let recognizer = unsafe { sherpa_rs_sys::SherpaOnnxCreateOfflineRecognizer(&config) };
-
         if recognizer.is_null() {
             bail!("Failed to create recognizer");
         }
@@ -115,14 +114,18 @@ impl MoonshineRecognizer {
         Ok(Self { recognizer })
     }
 
-    pub fn transcribe(&mut self, sample_rate: u32, samples: &[f32]) -> MoonshineRecognizerResult {
+    pub fn transcribe(
+        &mut self,
+        sample_rate: u32,
+        samples: impl AsRef<[f32]>,
+    ) -> MoonshineRecognizerResult {
         unsafe {
             let stream = sherpa_rs_sys::SherpaOnnxCreateOfflineStream(self.recognizer);
             sherpa_rs_sys::SherpaOnnxAcceptWaveformOffline(
                 stream,
                 sample_rate as i32,
-                samples.as_ptr(),
-                samples.len().try_into().unwrap(),
+                samples.as_ref().as_ptr(),
+                samples.as_ref().len() as _,
             );
             sherpa_rs_sys::SherpaOnnxDecodeOfflineStream(self.recognizer, stream);
             let result_ptr = sherpa_rs_sys::SherpaOnnxGetOfflineStreamResult(stream);
