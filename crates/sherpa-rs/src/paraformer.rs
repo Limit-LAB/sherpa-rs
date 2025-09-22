@@ -113,7 +113,7 @@ impl ParaformerRecognizer {
                 stream,
                 sample_rate as i32,
                 samples.as_ref().as_ptr(),
-                samples.len() as i32,
+                samples.as_ref().len() as i32,
             );
             sherpa_rs_sys::SherpaOnnxDecodeOfflineStream(self.recognizer, stream);
             let result_ptr = sherpa_rs_sys::SherpaOnnxGetOfflineStreamResult(stream);
